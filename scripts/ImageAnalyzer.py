@@ -100,8 +100,8 @@ Perfect for: those seeking increased energy, creativity, emotional healing, and 
             self.write_to_file(image_full_path, response)
             found = response.find("\n")
             output_data.append({
-                "image:":filename,
-                "title:": response[0:found].strip('*'),
+                "image":filename,
+                "title": response[0:found].strip('*'),
                 "description": response[found+1:].strip('\n'),
                 "record_id": record_id
                 })

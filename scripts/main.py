@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 import subprocess
 
 if __name__ == "__main__":
-    batch_size = 1
+    batch_size = 50
     index = 0
     
     load_dotenv()
