@@ -6,7 +6,7 @@ import json
 class ImageAnalyzer:
     def __init__(self, image_dir = "temp/", index = 0):
         self.url_main = "https://raw.githubusercontent.com/WanruXX/nyota_files/refs/heads/main/"
-        self.example_image_url = "example/Rainbow Harvest.jpg"
+        self.example_image_url = "example/Rainbow%20Harvest.jpg"
         self.example_text = """Rainbow Harvest
 
 Garnet beads are round and full, with a deep, alluring wine-red hue, reminiscent of ripe pomegranate seeds. Tourmaline crystals are transparent and vibrant, like a dreamy neon, reflecting brilliant light under illumination.
@@ -15,17 +15,35 @@ The combination of these two creates a striking yet harmonious clash of colors, 
 
 Perfect for: those seeking increased energy, creativity, emotional healing, and spiritual growth through the revitalizing and balancing properties of Garnet.
 """
-        self.instruction_example = "Please write an introduction for a jwerlry product. Please carefully identify the jewelry type, color, meterial, style and other design features. First, you will give it a beautiful name as the tile. Then you need to describe the features you just indentified. You also need to write the jewelry's the effects and symbols of the meterials and designs, especially phsycologically and spiritually. At last, give me one sentence of what group of people it is perfect for according to its features and effects."
-        self.prompt = "Please follow this template and write an introduction for another jwerlry product. Make sure everything is within 900 characters."
+        self.instruction_example = "Please write an introduction for a jwerlry product. Please carefully identify the jewelry type, color, meterial, style and other design features. First, you will give it a beautiful name as the tile. Then you need to describe the features you just indentified. You also need to write the jewelry's the effects and symbols of the meterials and designs, especially phsycologically and spiritually. At last, starting with 'Perfect for:', give me one sentence of what group of people it is perfect for according to its features and effects."
+        # self.prompt = "Please follow this template and write an introduction for another jwerlry product. Make sure everything is within 900 characters."
         self.image_sub_dir = image_dir
         self.client = OpenAI(api_key=os.getenv('API_KEY'))
         self.index = index
         
 
+    def get_prompt(self, image_filename):
+        item_type = ""
+        if image_filename[0] == 'N':
+            item_type = "necklace"
+        elif image_filename[0] == 'B':
+            item_type = "bracelet"
+        elif image_filename[0] == 'E':
+            item_type = "earings"
+        elif image_filename[0] == 'R':
+            item_type = "ring"
+        elif image_filename[0] == 'P':
+            item_type = "bracelet"
+        else:
+            item_type = "phone strap"
+        
+        return f"Please follow this template and write an introduction for the {item_type} in the picture. Make sure everything is within 900 characters."
+            
     def analyze_image(self, image_filename):
         print(
             f"Sending API request for image: {image_filename}")
         try:
+            iamge_url = self.url_main + self.image_sub_dir + image_filename + "?raw=true"
             response = self.client.chat.completions.create(
                 model="gpt-4o",
                 messages=[
@@ -35,7 +53,7 @@ Perfect for: those seeking increased energy, creativity, emotional healing, and 
                             {"type": "text", "text": self.instruction_example},
                             {
                                 "type": "image_url",
-                                "image_url": {"url": self.example_image_url},
+                                "image_url": {"url": self.url_main + self.example_image_url},
                             },
                         ],
                     },
@@ -46,10 +64,10 @@ Perfect for: those seeking increased energy, creativity, emotional healing, and 
                     {
                         "role": "user",
                         "content": [
-                            {"type": "text", "text": self.prompt},
+                            {"type": "text", "text": self.get_prompt(image_filename)},
                             {
                                 "type": "image_url",
-                                "image_url": {"url": self.url_main + self.image_sub_dir + image_filename + "?raw=true"},
+                                "image_url": {"url": iamge_url},
                             },
                         ],
                     }
@@ -70,21 +88,22 @@ Perfect for: those seeking increased energy, creativity, emotional healing, and 
             file.write(description)
 
 
-    def process_images(self, image_filenames):
+    def process_images(self, item_iamges):
         image_dir = os.path.join(os.getcwd(), self.image_sub_dir)
         if not os.path.exists(image_dir):
             os.makedirs(image_dir)
 
         output_data = []
-        for filename in image_filenames:
+        for record_id, filename in item_iamges.items():
             response = self.analyze_image(filename)
             image_full_path = os.path.join(self.image_sub_dir, f'{filename}.txt')
             self.write_to_file(image_full_path, response)
             found = response.find("\n")
             output_data.append({
                 "image:":filename,
-                "title:": response[0:found],
-                "description": response[found+1:]
+                "title:": response[0:found].strip('*'),
+                "description": response[found+1:].strip('\n'),
+                "record_id": record_id
                 })
             print("Finish generating ", filename)
 
@@ -93,6 +112,8 @@ Perfect for: those seeking increased energy, creativity, emotional healing, and 
             json.dump(output_data, combined_file, indent=4)
             self.index += 1
         print(f"All captions have been combined into: {combined_filename}")
+        
+        return output_data
 
 
     def estimate_cost(self, image_filenames):
@@ -124,15 +145,14 @@ Perfect for: those seeking increased energy, creativity, emotional healing, and 
         return total_cost
 
 
-    def generate_captions(self, image_filenames):
-        # Calculate the estimated cost including token-based costs
-        cost = self.estimate_cost(image_filenames)
-        print("The estimated cost for analyzing (assuming each image is 1024x1024 and you did not enter a crazy instruction)", len(
-            image_filenames), "images is", cost)
-        input_key = input("Would you like to continue?[y/n]: ")
-
-        if input_key == 'y':
-            self.process_images(image_filenames)
-        else:
-            print("Terminate generation")
-            exit()
+    # def generate_descriptions(self, item_iamges):
+    #     self.process_images(item_iamges)
+        # cost = self.estimate_cost(image_filenames)
+        # print("The estimated cost for analyzing (assuming each image is 1024x1024 and you did not enter a crazy instruction)", len(
+        #     image_filenames), "images is", cost)
+        # input_key = input("Would you like to continue?[y/n]: ")
+        # if input_key == 'y':
+        #     self.process_images(item_iamges)
+        # else:
+        #     print("Terminate generation")
+        #     exit()

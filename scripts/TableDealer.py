@@ -21,7 +21,7 @@ class TableDealer:
         self.index = index
             
             
-    def getNewItems(self, batch_size = 50):
+    def get_new_items(self, batch_size = 50):
         request: SearchAppTableRecordRequest = SearchAppTableRecordRequest.builder() \
             .app_token(os.getenv('APP_TOKEN')) \
             .table_id(os.getenv('TABLE_ID')) \
@@ -64,8 +64,8 @@ class TableDealer:
         return response.data.items
         
         
-    def downloadImages(self, items):
-        image_filenames = []
+    def download_images(self, items):
+        item_iamges = {}
         
         for item in items:
             fields = item.fields
@@ -84,8 +84,33 @@ class TableDealer:
             with open(os.path.join(self.image_dir, image_filename), 'wb') as file:
                 file.write(response.file.read())
                 file.close()
-            image_filenames.append(image_filename)
+            item_iamges[item.record_id] = image_filename
             print("Downloaded image ", image_filename)
         
-        return image_filenames
+        return item_iamges
+    
+    def update_descriptions(self, descriptions):
+        records = []
+        for des in descriptions:
+            records.append(AppTableRecord.builder()
+                .fields({"产品名字英文": des["title"], "产品描述英文": des["description"]})
+                .record_id(des["record_id"])
+                .build())
+        
+        request: BatchUpdateAppTableRecordRequest = BatchUpdateAppTableRecordRequest.builder() \
+        .app_token(os.getenv('APP_TOKEN')) \
+        .table_id(os.getenv('TABLE_ID')) \
+        .request_body(BatchUpdateAppTableRecordRequestBody.builder()
+            .records(records)
+            .build()) \
+        .build()
+
+        response: BatchUpdateAppTableRecordResponse = self.client.bitable.v1.app_table_record.batch_update(request, self.option)
+
+        if not response.success():
+            lark.logger.error(
+                f"client.bitable.v1.app_table_record.batch_update failed, code: {response.code}, msg: {response.msg}, log_id: {response.get_log_id()}, resp: \n{json.dumps(json.loads(response.raw.content), indent=4, ensure_ascii=False)}")
+            return
+
+        lark.logger.info(lark.JSON.marshal(response.data, indent=4))
 
