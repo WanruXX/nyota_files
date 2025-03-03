@@ -15,7 +15,7 @@ if __name__ == "__main__":
     new_items_file = os.path.join(image_dir, "new_items_" + str(index) + ".json")
     des_added_file = os.path.join(image_dir, "description_added_" + str(index) + ".json")
     
-    operation = 2
+    operation = 3
     
     if operation == 0:
         # add translated names to names.json, compared with local, if existing already

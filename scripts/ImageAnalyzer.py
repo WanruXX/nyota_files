@@ -22,29 +22,29 @@ class ImageAnalyzer:
         self.index = index
         
 
-    def get_prompt(self, image_filename, image_title):
+    def get_prompt(self, item_type, image_filename):
         item_type = ""
-        if image_filename[0] == 'N':
+        if item_type == 'N':
             item_type = "necklace"
-        elif image_filename[0] == 'B':
+        elif item_type == 'B':
             item_type = "bracelet"
-        elif image_filename[0] == 'E':
+        elif item_type == 'E':
             item_type = "earrings"
-        elif image_filename[0] == 'R':
+        elif item_type == 'R':
             item_type = "ring"
-        elif image_filename[0] == 'P':
+        elif item_type == 'P':
             item_type = "bracelet"
         else:
             item_type = "phone strap"
         
         # return f"Please follow this template and write an introduction for the {item_type} in the picture. Make sure everything is within 900 characters."
-        return f"Please write an introduction for the {item_type} in the picture with the title {image_title}. Don't put the title in your answer. You only need to output the body text. Please carefully identify the jewelry's color, meterial, style and other design features and describe the jewelry's excellent appearance, aas well as the symbols and effects of the meterials and designs, especially phsycologically and spiritually. At last, add 'Perfect for:' in another paragraph, give me one sentence of what group of people it is perfect for according to its effects. Don't include anything like someone looking for the good outter appearance. Make sure everything is within 900 characters."
+        return f"Please write an introduction for the {item_type} in the picture with the title {image_filename}. Don't put the title in your answer. You only need to output the body text. Please carefully identify the jewelry's color, meterial, style and other design features and describe the jewelry's excellent appearance, aas well as the symbols and effects of the meterials and designs, especially phsycologically and spiritually. At last, add 'Perfect for:' in another paragraph, give me one sentence of what group of people it is perfect for according to its effects. Don't include anything like someone looking for the good outter appearance. Make sure everything is within 900 characters."
             
-    def analyze_image(self, image_filename):
+    def analyze_image(self, item_type, image_filename):
         print(
             f"Sending API request for image: {image_filename}")
         try:
-            iamge_url = self.url_main + self.image_sub_dir + image_filename + "?raw=true"
+            iamge_url = self.url_main + self.image_sub_dir + image_filename + ".jpg?raw=true"
             response = self.client.chat.completions.create(
                 model="gpt-4o",
                 messages=[
@@ -65,7 +65,7 @@ class ImageAnalyzer:
                     {
                         "role": "user",
                         "content": [
-                            {"type": "text", "text": self.get_prompt(image_filename)},
+                            {"type": "text", "text": self.get_prompt(item_type, image_filename)},
                             {
                                 "type": "image_url",
                                 "image_url": {"url": iamge_url},
@@ -97,15 +97,17 @@ class ImageAnalyzer:
             
         with open(input_items_file, encoding="utf-8") as f:
             new_items = json.load(f)
-            print("Loaded")
+            print("Loaded", input_items_file, "for processing images")
         
         for item in new_items["items"]:
-            filename = item["fields"]["产品名字英文"][0]["text"] + ".jpg"
-            response = self.analyze_image(filename)
-            image_full_path = os.path.join(self.image_sub_dir, f'{filename}.txt')
-            self.write_to_file(image_full_path, response)
-            found = response.find("\n")
-            item["fields"]["产品描述英文"] = response[found+1:].strip('\n')
+            filename = item["fields"]["产品名字英文"][0]["text"]
+            item_type = item["fields"]["产品品类"]
+            out_des_file = os.path.join(self.image_sub_dir, f'{filename}.txt')
+            item["fields"]["产品描述英文"] = self.analyze_image(item_type, filename)
+            # with open(out_des_file,"r") as f:
+            #     item["fields"]["产品描述英文"] = f.read()
+            item["fields"]["产品描述英文"] = self.analyze_image(item_type, filename)
+            self.write_to_file(out_des_file, item["fields"]["产品描述英文"])
             print("Finish generating ", filename)
 
         with open(output_items_file, 'w', encoding="utf-8") as combined_file:

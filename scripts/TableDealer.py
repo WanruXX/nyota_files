@@ -29,7 +29,7 @@ class TableDealer:
             .page_size(batch_size) \
             .request_body(SearchAppTableRecordRequestBody.builder()
                 .view_id(os.getenv('VIEW_ID'))
-                .field_names(["产品名字英文", "预览小图"])
+                .field_names(["产品名字英文", "产品品类", "预览小图"])
                 .filter(FilterInfo.builder()
                     .conjunction("and")
                     .conditions([Condition.builder()
