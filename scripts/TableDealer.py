@@ -21,7 +21,7 @@ class TableDealer:
         self.index = index
             
             
-    def get_new_items(self, batch_size = 50):
+    def get_new_items(self, new_items_file, batch_size = 50):
         request: SearchAppTableRecordRequest = SearchAppTableRecordRequest.builder() \
             .app_token(os.getenv('APP_TOKEN')) \
             .table_id(os.getenv('TABLE_ID')) \
@@ -29,17 +29,22 @@ class TableDealer:
             .page_size(batch_size) \
             .request_body(SearchAppTableRecordRequestBody.builder()
                 .view_id(os.getenv('VIEW_ID'))
-                .field_names(["产品品类", "主题编号", "预览小图"])
+                .field_names(["产品名字英文", "预览小图"])
                 .filter(FilterInfo.builder()
                     .conjunction("and")
                     .conditions([Condition.builder()
                         .field_name("产品名字英文")
-                        .operator("isEmpty")
+                        .operator("isNotEmpty")
                         .value([])
                         .build(), 
                         Condition.builder()
                         .field_name("预览小图")
                         .operator("isNotEmpty")
+                        .value([])
+                        .build(),
+                        Condition.builder()
+                        .field_name("产品描述英文")
+                        .operator("isEmpty")
                         .value([])
                         .build()
                         ])
@@ -56,19 +61,20 @@ class TableDealer:
             return
 
         lark.logger.info(lark.JSON.marshal(response.data, indent=4))
-        output_file = os.path.join(self.image_dir, "new_items_" + str(self.index) + ".json")
-        with open(output_file, 'w', encoding="utf-8") as file:
+        
+        with open(new_items_file, 'w', encoding="utf-8") as file:
             file.write(lark.JSON.marshal(response.data, indent=4))
             self.index += 1
         
-        return response.data.items
         
-        
-    def download_images(self, items):
-        item_iamges = {}
-        
-        for item in items:
-            fields = item.fields
+    def download_images(self, new_items_file):
+        # item_iamges = {}
+        with open(new_items_file, encoding="utf-8") as f:
+            new_items = json.load(f)
+            print("Loaded", new_items_file, "for downloading images")
+            
+        for item in new_items["items"]:
+            fields = item["fields"]
             request: DownloadMediaRequest = DownloadMediaRequest.builder() \
                 .file_token(fields["预览小图"][0]["file_token"]) \
                 .build()
@@ -80,21 +86,23 @@ class TableDealer:
                     f"client.drive.v1.media.download failed, code: {response.code}, msg: {response.msg}, log_id: {response.get_log_id()}, resp: \n{json.dumps(json.loads(response.raw.content), indent=4, ensure_ascii=False)}")
                 return
             
-            image_filename = fields["产品品类"] + str(fields["主题编号"]) + ".jpg"
+            image_filename = fields["产品名字英文"][0]["text"] + ".jpg"
             with open(os.path.join(self.image_dir, image_filename), 'wb') as file:
                 file.write(response.file.read())
                 file.close()
-            item_iamges[item.record_id] = image_filename
+            # item_iamges[item.record_id] = image_filename
             print("Downloaded image ", image_filename)
-        
-        return item_iamges
     
-    def update_descriptions(self, descriptions):
+    def update_descriptions(self, des_added_file):
+        with open(des_added_file, encoding="utf-8") as f:
+            des_added_items = json.load(f)
+            print("Loaded", des_added_file, "for updating descriptions")
+            
         records = []
-        for des in descriptions:
+        for item in des_added_items["items"]:
             records.append(AppTableRecord.builder()
-                .fields({"产品名字英文": des["title"], "产品描述英文": des["description"]})
-                .record_id(des["record_id"])
+                .fields({"产品描述英文": item["fields"]["产品描述英文"]})
+                .record_id(item["record_id"])
                 .build())
         
         request: BatchUpdateAppTableRecordRequest = BatchUpdateAppTableRecordRequest.builder() \
